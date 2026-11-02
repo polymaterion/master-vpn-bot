@@ -1,0 +1,15 @@
+{$DOMAIN} {
+	# Наружу открыты только вебхуки и проверка живости; всё остальное – 404.
+	handle /partner-webhook {
+		reverse_proxy bot:8080
+	}
+	handle /cryptopay-webhook {
+		reverse_proxy bot:8080
+	}
+	handle /health {
+		reverse_proxy bot:8080
+	}
+	handle {
+		respond 404
+	}
+}
