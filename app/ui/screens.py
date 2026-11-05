@@ -62,8 +62,7 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
     status = T.STATUS_PAUSED if sub.paused else T.STATUS_ACTIVE if sub.running else T.STATUS_EXPIRED
     text = T.SUB_CARD.format(
         status=status, until=fmt_date(sub.expires_at), devices_used=used, devices_limit=sub.device_limit,
-        used=fmt_gib(u.get("traffic_used_bytes")), limit=fmt_gib(u.get("traffic_limit_bytes")),
-        white_used=fmt_gib(u.get("white_used_bytes")), white_limit=fmt_gib(u.get("white_limit_bytes")))
+        used=fmt_gib(u.get("traffic_used_bytes")), limit=fmt_gib(u.get("traffic_limit_bytes")))
     rows = [[btn(T.BTN_LINK, "sub_link"), btn(T.BTN_QR, "sub_qr")]]
     if sub.can_renew:
         rows.append([btn(T.BTN_RENEW, "renew_term")])
