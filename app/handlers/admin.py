@@ -34,7 +34,6 @@ async def user_card(app: App, tg_id: int) -> tuple[str, InlineKeyboardMarkup | N
     text = (f"👤 {ext}\nСтатус: {u['status']}\nДо: {fmt_date(parse_iso(u.get('expires_at')))}\n"
             f"Устройств: {used} из {u['device_limit']}\n"
             f"Трафик: {fmt_gib(u['traffic_used_bytes'])} / {fmt_gib(u['traffic_limit_bytes'])}\n"
-            f"Белый: {fmt_gib(u['white_used_bytes'])} / {fmt_gib(u['white_limit_bytes'])}\n"
             f"Ссылка: {u['subscription_url']}")
     kb = _kb([_b("⏸ Пауза", f"adm|pause|{tg_id}"), _b("▶️ Возобновить", f"adm|resume|{tg_id}")],
              [_b("🔑 Новая ссылка", f"adm|rotate_ask|{tg_id}")])
