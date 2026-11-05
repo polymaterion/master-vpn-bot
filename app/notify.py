@@ -87,7 +87,7 @@ class BotNotifier:
 
     async def traffic(self, tg_id: int, *, white: bool) -> None:
         _, kb = await self._renew_or_buy_kb(tg_id)
-        await self.send(tg_id, T.N_TRAFFIC.format(what="белого трафика" if white else "трафика"), kb)
+        await self.send(tg_id, T.N_TRAFFIC.format(what="трафика"), kb)
 
     async def reminder(self, tg_id: int, until: str) -> None:
         _, kb = await self._renew_or_buy_kb(tg_id)

@@ -16,8 +16,7 @@ SUB_CARD = ("📱 <b>Моя подписка</b>\n\n"
             "Статус: {status}\n"
             "Действует до: <b>{until}</b>\n"
             "Устройств: <b>{devices_used} из {devices_limit}</b>\n"
-            "Трафик: {used} из {limit}\n"
-            "Белый трафик: {white_used} из {white_limit}")
+            "Трафик: {used} из {limit}")
 STATUS_ACTIVE, STATUS_EXPIRED, STATUS_PAUSED = "✅ активна", "⛔ истекла", "⏸ приостановлена"
 BTN_LINK, BTN_QR, BTN_RENEW = "🔗 Ссылка", "🔳 QR-код", "🔄 Продлить подписку"
 TRIAL_GIVEN = "🎁 Пробный доступ на 72 часа выдан."
