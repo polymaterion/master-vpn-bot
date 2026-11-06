@@ -61,6 +61,27 @@ class OrderService:
         return "fulfilled"
 
     async def _deliver(self, p: PaymentRow) -> dict:
+        try:
+            return await self._place_order(p)
+        except PartnerError as e:
+            if e.code != "excess_devices":
+                raise
+        # Устройств больше, чем в новом тарифе: покупателя не задерживаем – освобождаем слоты
+        # и выпускаем новую ссылку, затем повторяем заказ с тем же ключом.
+        await self._reset_devices(f"tg-{p.tg_id}")
+        return await self._place_order(p)
+
+    async def _reset_devices(self, ext: str) -> None:
+        log.info("%s: лишние устройства, удаляем все и перевыпускаем ссылку", ext)
+        for d in (await self.partner.devices(ext)).get("devices", []):
+            try:
+                await self.partner.delete_device(ext, d["device_id"])
+            except PartnerError as e:
+                if e.status != 404:
+                    raise
+        await self.partner.rotate(ext)
+
+    async def _place_order(self, p: PaymentRow) -> dict:
         ext, days, key = f"tg-{p.tg_id}", p.months * DAYS_PER_MONTH, p.idem_key or ""
         await self.plans.ensure()
         if p.kind == "renew":
