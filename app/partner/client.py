@@ -145,6 +145,9 @@ class PartnerClient:
     async def devices(self, external_id: str) -> dict:
         return await self.call("GET", self._u(external_id) + "/devices")
 
+    async def delete_device(self, external_id: str, device_id: str) -> None:
+        await self.call("DELETE", self._u(external_id) + "/devices/" + quote(device_id, safe=""))
+
     async def pause(self, external_id: str) -> None:
         await self.call("DELETE", self._u(external_id))
 
