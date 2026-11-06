@@ -41,15 +41,25 @@ async def test_insufficient_balance_waits_then_succeeds_with_same_key(shop):
 
 
 async def test_permanent_error_marks_failed_and_notifies(shop):
-    shop.partner.fail = [PartnerError(409, {"code": "excess_devices", "request_id": "req_1"})]
+    shop.partner.fail = [PartnerError(409, {"code": "plan_exceeds_terms", "request_id": "req_1"})]
     p = await _paid_payment(shop)
     assert await shop.orders.process_paid(p.id, "c3") == "failed"
     row = await shop.db.get_payment(p.id)
-    assert row.status == "failed" and row.error_code == "excess_devices" and row.request_id == "req_1"
-    assert shop.notifier.events == [("failed", 7, "excess_devices")]
+    assert row.status == "failed" and row.error_code == "plan_exceeds_terms" and row.request_id == "req_1"
+    assert shop.notifier.events == [("failed", 7, "plan_exceeds_terms")]
     # админ нажал «Повторить» – заказ уходит тем же ключом
     assert await shop.orders.admin_retry(p.id) == "fulfilled"
     assert {c[4] for c in shop.partner.calls if c[0] == "PUT"} == {"stars-c3"}
+
+
+async def test_excess_devices_are_cleared_and_link_rotated_instead_of_failing(shop):
+    shop.partner.device_list["tg-7"] = ["a", "b", "c"]            # было 3 устройства, покупает на 1
+    p = await _paid_payment(shop, devices=1)
+    assert await shop.orders.process_paid(p.id, "c9") == "fulfilled"
+    assert shop.partner.device_list["tg-7"] == []                 # устройства освобождены
+    assert shop.partner.rotated == ["tg-7"]                       # выпущена новая ссылка
+    assert {c[4] for c in shop.partner.calls if c[0] == "PUT"} == {"stars-c9"}   # ключ заказа один
+    assert shop.notifier.events == [("ok", 7)]
 
 
 async def test_temporary_api_error_goes_to_queue(shop):

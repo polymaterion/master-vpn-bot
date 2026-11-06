@@ -46,6 +46,8 @@ class FakePartner:
         self.calls: list[tuple] = []
         self.fail: list[PartnerError] = []   # очередь ошибок для ближайших заказов
         self.users: dict[str, dict] = {}
+        self.device_list: dict[str, list[str]] = {}
+        self.rotated: list[str] = []
 
     PLANS = {"plans": [
         {"id": f"plan-{d}", "kind": "grid", "device_limit": d, "duration_days": 30} for d in (1, 2, 4, 8)]}
@@ -65,6 +67,8 @@ class FakePartner:
     def _order(self, ext, key, days, device_limit):
         if key in self.orders:
             return {**self.orders[key], "replayed": True, "charged_minor": "0"}
+        if len(self.device_list.get(ext, [])) > device_limit:
+            raise PartnerError(409, {"code": "excess_devices", "request_id": "req_d"})
         if self.fail:
             raise self.fail.pop(0)
         price = 10500 * days // 30
@@ -77,6 +81,18 @@ class FakePartner:
         self.orders[key] = user
         self.users[ext] = user
         return user
+
+    async def devices(self, ext):
+        return {"devices": [{"device_id": d} for d in self.device_list.get(ext, [])]}
+
+    async def delete_device(self, ext, device_id):
+        self.calls.append(("DELETE_DEVICE", ext, device_id))
+        self.device_list[ext].remove(device_id)
+
+    async def rotate(self, ext):
+        self.calls.append(("ROTATE", ext))
+        self.rotated.append(ext)
+        return {"external_id": ext}
 
     async def put_user(self, ext, plan_id, days, key, *, max_charge_minor=None, metadata=None):
         self.calls.append(("PUT", ext, plan_id, days, key, max_charge_minor))

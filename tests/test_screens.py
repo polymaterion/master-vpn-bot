@@ -103,11 +103,36 @@ async def test_trial_user_can_only_buy_not_renew(db, settings):
     assert len(device_buttons) == 1                            # у действующего триала ступень менять нельзя
 
 
-async def test_excess_devices_blocks_purchase_before_payment(db, settings):
+async def test_excess_devices_do_not_block_purchase(db, settings):
     app = make_app(db, settings, user={**paid_user(devices=4, days=-1)}, devices=3)
     await app.nav.push(5, None, "pay_method", {"kind": "buy", "months": "1", "devices": "2"})
     msg = app.bot.sent[-1]
-    assert "подключено устройств" in msg["text"] and not any("Оплатить" in b.text for b in buttons(msg))
+    assert "подключено устройств" not in msg["text"] and any("Stars" in b.text for b in buttons(msg))
+
+
+async def test_expired_paid_subscription_has_no_link_or_qr(db, settings):
+    app = make_app(db, settings, user=paid_user(days=-1))
+    await app.db.add_payment(__import__("app.db", fromlist=["PaymentRow"]).PaymentRow(
+        id="p2", tg_id=5, provider="stars", kind="buy", months=1, devices=2, amount=1, currency="STARS", status="fulfilled"))
+    await app.nav.push(5, None, "sub")
+    card = app.bot.sent[-1]
+    labels = [b.text for b in buttons(card)]
+    assert "закончился" in card["text"] and "sub.example.net" not in card["text"]
+    assert not any("Ссылка" in t or "QR" in t for t in labels)
+    assert any("Продлить" in t for t in labels) and any("Купить" in t for t in labels)
+    await app.nav.push(5, None, "sub_link")
+    assert "sub.example.net" not in app.bot.sent[-1]["text"]
+    await app.nav.push(5, None, "sub_qr")
+    assert app.bot.sent[-1]["photo"] is False and "sub.example.net" not in app.bot.sent[-1]["text"]
+
+
+async def test_expired_trial_offers_only_buy(db, settings):
+    app = make_app(db, settings, user=paid_user(days=-1))      # платных заказов нет – это триал
+    await app.nav.push(5, None, "sub")
+    card = app.bot.sent[-1]
+    labels = [b.text for b in buttons(card)]
+    assert "Пробный доступ закончился" in card["text"]
+    assert any("Купить" in t for t in labels) and not any("Продлить" in t or "Ссылка" in t or "QR" in t for t in labels)
 
 
 async def test_payment_methods_show_prices_and_rub_is_stub(db, settings):
