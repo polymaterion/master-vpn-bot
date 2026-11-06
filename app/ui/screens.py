@@ -47,6 +47,17 @@ async def home(ctx: Ctx, p: dict) -> Screen:
     return Screen(T.HOME.format(brand=esc(ctx.settings.brand_name)), [r for r in rows if r])
 
 
+def _expired_screen(sub) -> Screen:
+    """Закончившаяся подписка: ни ссылки, ни QR – только продлить или купить заново."""
+    text = (T.SUB_EXPIRED if sub.has_paid else T.SUB_EXPIRED_TRIAL).format(until=fmt_date(sub.expires_at))
+    rows = []
+    if sub.can_renew:
+        rows.append([btn(T.BTN_RENEW, "renew_term")])
+    if sub.can_buy:
+        rows.append([btn(T.BTN_BUY, "buy_term")])
+    return Screen(text, rows + [back_row()])
+
+
 @screen("sub")
 async def sub_card(ctx: Ctx, p: dict) -> Screen:
     sub = await ctx.sub()
@@ -54,6 +65,8 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
         rows = [[btn(T.BTN_BUY, "buy_term")],
                 [InlineKeyboardButton(text=T.BTN_TRIAL, callback_data="a|trial")], back_row()]
         return Screen(T.SUB_NONE, rows)
+    if not sub.running:
+        return _expired_screen(sub)
     u = sub.user or {}
     try:
         used = len((await ctx.app.partner.devices(f"tg-{ctx.tg_id}")).get("devices", []))
@@ -75,6 +88,8 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
 @screen("sub_link")
 async def sub_link(ctx: Ctx, p: dict) -> Screen:
     sub = await ctx.sub()
+    if sub.expired:
+        return _expired_screen(sub)
     url = (sub.user or {}).get("subscription_url", "")
     return Screen(T.LINK.format(url=esc(url)), [back_row()])
 
@@ -82,6 +97,8 @@ async def sub_link(ctx: Ctx, p: dict) -> Screen:
 @screen("sub_qr")
 async def sub_qr(ctx: Ctx, p: dict) -> Screen:
     sub = await ctx.sub()
+    if sub.expired:
+        return _expired_screen(sub)
     url = (sub.user or {}).get("subscription_url", "")
     return Screen(T.QR.format(url=esc(url)), [back_row()], photo=make_qr_png(url) if url else None)
 
@@ -133,12 +150,6 @@ async def buy_devices(ctx: Ctx, p: dict) -> Screen:
 async def pay_method(ctx: Ctx, p: dict) -> Screen:
     kind, months, devices = p["kind"], _int(p, "months"), _int(p, "devices")
     sub = await ctx.sub()
-    if kind == "buy" and sub.exists:
-        # лишние устройства API не снимает сам: предупреждаем до оплаты, а не после
-        used = len((await ctx.app.partner.devices(f"tg-{ctx.tg_id}")).get("devices", []))
-        if used > devices:
-            rows = [_url(T.BTN_SUPPORT, ctx.settings.support_url), back_row()]
-            return Screen(T.BUY_EXCESS.format(used=used, limit=devices), [r for r in rows if r])
     s = ctx.settings
     rows = [
         # Stars: без промежуточного экрана – кнопка сразу отправляет счёт (см. handlers/user.py)
