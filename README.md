@@ -1,6 +1,6 @@
 # Master VPN — Telegram-бот на Partner API «Мастерская VPN»
 
-Бот продаёт доступ к VPN (Stars, USDT; рубли — заглушка до подключения platega.io) и выдаёт ссылку-подписку
+Бот продаёт доступ к VPN (Stars, USDT; рубли по СБП через platega.io) и выдаёт ссылку-подписку
 через Partner API. Экраны сделаны по PDF с UX: один экран = одно сообщение, навигация со стеком, «Назад» всегда на
 один уровень назад. Язык один — русский (тексты в `app/texts.py`).
 
@@ -56,11 +56,17 @@
 - **Антифлуд**: 1 действие в секунду на пользователя, один открытый счёт на способ оплаты.
 - Вебхуки: подпись по сырому телу, окно ±5 минут, дедупликация по `id`, незнакомый `type` получает 2xx.
 
-## Подключение Platega (рубли)
+## Подключение Platega (рубли, СБП)
 
-Реализуйте `create_invoice()` и вебхук в `app/providers/platega.py` по образцу `cryptopay.py`, поставьте
-`implemented = True` и `PLATEGA_ENABLED=true`. При оплате вызывайте `orders.process_paid(payment_id, provider_ref)` —
-выдача, идемпотентность и уведомления уже работают. Экран `pay_rub` в `app/ui/screens.py` заменит заглушку.
+1. В `.env`: `PLATEGA_MERCHANT_ID`, `PLATEGA_SECRET` (кабинет Platega → Настройки), `PLATEGA_ENABLED=true`.
+2. В кабинете Platega → Настройки → Callback URLs: `https://<домен>/platega-callback`.
+3. `docker compose up -d --build` и тестовый платёж.
+
+Как работает: счёт создаётся `POST /transaction/process` (способ 2 – СБП QR, 15 минут). Доступ выдаётся только после
+`CONFIRMED`, который бот перепроверяет запросом `GET /transaction/{id}` и сверкой суммы; колбэк без проверки не
+считается оплатой. Потерянные колбэки добирает проверка открытых платежей раз в минуту. Возвраты, диспуты и
+чарджбэки админам приходят уведомлением, автоматических действий нет. Если Platega не принимает `metadata`,
+запрос повторяется без неё; другой адрес создания платежа – `PLATEGA_CREATE_PATH` (например `/v2/transaction/process`).
 
 ## Тесты и разработка
 
@@ -80,8 +86,8 @@ app/ui/screens.py      все экраны по PDF
 app/handlers/          user (callbacks, Stars), admin, антифлуд
 app/services/          orders (выдача), payments (счета), plans (ступени), subscription (состояние клиента)
 app/partner/client.py  клиент Partner API: повторы, идемпотентность, запасные адреса
-app/providers/         cryptopay, platega (заглушка)
-app/webhooks.py        /partner-webhook, /cryptopay-webhook, /health
+app/providers/         cryptopay, platega
+app/webhooks.py        /partner-webhook, /cryptopay-webhook, /platega-callback, /health
 app/jobs.py            старт-проверки, очередь выдачи, напоминания, суточные задачи
 migrations/            Alembic;  tests/ — pytest
 ```

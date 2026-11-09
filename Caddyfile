@@ -6,6 +6,9 @@
 	handle /cryptopay-webhook {
 		reverse_proxy bot:8080
 	}
+	handle /platega-callback {
+		reverse_proxy bot:8080
+	}
 	handle /health {
 		reverse_proxy bot:8080
 	}
