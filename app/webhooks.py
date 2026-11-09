@@ -55,6 +55,28 @@ async def handle_partner_event(app: App, event: dict) -> None:
     # user.enabled / user.disabled / webhook.test и незнакомые типы: просто подтверждаем
 
 
+async def handle_platega_callback(app: App, data: dict) -> None:
+    """Статус из тела не принимаем на веру: CONFIRMED/CANCELED перепроверяются запросом к Platega."""
+    from . import texts as T
+    from .providers.platega import PlategaError
+    from .services.payments import check_platega
+
+    ref, status = str(data["id"]), str(data["status"])
+    pay = await app.db.payment_by_ref("platega", ref)
+    if pay is None:
+        log.warning("Platega: колбэк по неизвестному платежу %s (%s)", ref, status)
+        return
+    if status in ("CONFIRMED", "CANCELED"):
+        try:
+            await check_platega(app, pay)
+        except PlategaError as e:
+            log.warning("Platega: проверка %s не удалась, доберёт фоновая проверка: %s", ref, e)
+    elif status in ("CHARGEBACKED", "PARTIALLY_REFUNDED", "DISPUTED"):
+        if await app.db.remember_event(f"platega:{ref}:{status}", f"platega.{status}", ""):
+            await app.notifier.admins(T.A_PLATEGA_ALERT.format(
+                status=status, tg_id=pay.tg_id, amount=pay.amount, ref=ref, order=pay.status))
+
+
 def build_web_app(app: App) -> web.Application:
     async def partner_webhook(request: web.Request) -> web.Response:
         raw = await request.read()  # подпись считается по сырым байтам тела
@@ -86,11 +108,23 @@ def build_web_app(app: App) -> web.Application:
                 spawn(app.orders.process_paid(pay.id))
         return web.Response(status=200)
 
+    async def platega_callback(request: web.Request) -> web.Response:
+        if not app.platega.verify_callback(request.headers):
+            return web.Response(status=401)
+        try:
+            data = json.loads(await request.read())
+            str(data["id"]), str(data["status"])
+        except (ValueError, KeyError, TypeError):
+            return web.Response(status=400)
+        spawn(handle_platega_callback(app, data))
+        return web.Response(status=200)  # работу делаем в фоне; потерянное доберёт проверка раз в минуту
+
     async def health(request: web.Request) -> web.Response:
         return web.json_response({"ok": True})
 
     web_app = web.Application()
     web_app.router.add_post("/partner-webhook", partner_webhook)
     web_app.router.add_post("/cryptopay-webhook", cryptopay_webhook)
+    web_app.router.add_post("/platega-callback", platega_callback)
     web_app.router.add_get("/health", health)
     return web_app

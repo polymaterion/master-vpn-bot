@@ -66,6 +66,10 @@ class Settings:
     throttle_seconds: float = 1.0
     reminder_days: int = 3
     reminder_hours_utc: tuple[int, int] = (6, 17)
+    platega_merchant_id: str = ""
+    platega_secret: str = ""
+    platega_api_base: str = "https://app.platega.io"
+    platega_create_path: str = "/transaction/process"
 
     def price(self, currency: str, months: int, devices: int) -> Decimal:
         return self.prices[(currency, months, devices)]
@@ -138,4 +142,8 @@ class Settings:
             throttle_seconds=float(env.get("THROTTLE_SECONDS") or 1.0),
             reminder_days=int(env.get("REMINDER_DAYS") or 3),
             reminder_hours_utc=hours,
+            platega_merchant_id=(env.get("PLATEGA_MERCHANT_ID") or "").strip(),
+            platega_secret=(env.get("PLATEGA_SECRET") or "").strip(),
+            platega_api_base=(env.get("PLATEGA_API_BASE") or "https://app.platega.io").rstrip("/"),
+            platega_create_path=(env.get("PLATEGA_CREATE_PATH") or "/transaction/process").strip(),
         )

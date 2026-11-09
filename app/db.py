@@ -134,6 +134,13 @@ class Database:
             ).order_by(PaymentRow.created_at.desc()))
             return list(res.scalars())
 
+    async def open_provider_payments(self, provider: str, since: datetime) -> list[PaymentRow]:
+        async with self.session() as s:
+            res = await s.execute(select(PaymentRow).where(
+                PaymentRow.provider == provider, PaymentRow.status == "created", PaymentRow.created_at >= since
+            ).order_by(PaymentRow.created_at))
+            return list(res.scalars())
+
     async def transition(self, payment_id: str, from_statuses: Sequence[str], to_status: str,
                          **fields: Any) -> PaymentRow | None:
         """Атомарный переход статуса; None – платёж уже в другом статусе (повторное событие)."""

@@ -36,7 +36,8 @@ def build_app(settings: Settings) -> App:
     orders = OrderService(db, partner, plans, notifier)
     app = App(settings=settings, db=db, partner=partner, plans=plans, orders=orders, notifier=notifier,
               cryptopay=CryptoPay(settings.cryptopay_token, settings.cryptopay_api_base),
-              platega=Platega(settings.platega_enabled), bot=bot, nav=None)  # type: ignore[arg-type]
+              platega=Platega(settings.platega_enabled, settings.platega_merchant_id, settings.platega_secret,
+                              settings.platega_api_base, settings.platega_create_path), bot=bot, nav=None)  # type: ignore[arg-type]
     app.nav = Navigator(app)
     return app
 
@@ -65,6 +66,8 @@ async def main() -> None:
 
     tasks = [asyncio.create_task(jobs.retry_loop(app)), asyncio.create_task(jobs.reminders_loop(app)),
              asyncio.create_task(jobs.daily_loop(app))]
+    if app.platega.enabled:
+        tasks.append(asyncio.create_task(jobs.platega_loop(app)))
     try:
         await dp.start_polling(app.bot, handle_signals=True)
     finally:
@@ -73,6 +76,7 @@ async def main() -> None:
         await runner.cleanup()
         await app.partner.close()
         await app.cryptopay.close()
+        await app.platega.close()
         await app.db.close()
         await app.bot.session.close()
 

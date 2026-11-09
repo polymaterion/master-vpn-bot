@@ -36,6 +36,8 @@ async def startup_checks(app: App) -> list[str]:
         warnings.append("PARTNER_WEBHOOK_SECRET пуст: вебхуки Partner API будут отклоняться (python -m app.scripts.set_webhook).")
     if not app.cryptopay.enabled:
         warnings.append("CRYPTOPAY_TOKEN не задан: оплата USDT недоступна.")
+    if app.settings.platega_enabled and not app.platega.enabled:
+        warnings.append("PLATEGA_ENABLED=true, но PLATEGA_MERCHANT_ID или PLATEGA_SECRET не заданы: оплата рублями недоступна.")
     for w in warnings:
         log.warning(w)
     return warnings
@@ -66,6 +68,30 @@ async def retry_loop(app: App, interval: int = 60) -> None:
             await app.orders.retry_due()
         except Exception:  # noqa: BLE001
             log.exception("retry_due")
+
+
+async def platega_once(app: App) -> int:
+    """Страховка от потерянных уведомлений: проверяем открытые платежи Platega по API."""
+    from .providers.platega import PlategaError
+    from .services.payments import check_platega
+
+    n = 0
+    for pay in await app.db.open_provider_payments("platega", utcnow() - timedelta(hours=2)):
+        try:
+            if await check_platega(app, pay) == "paid":
+                n += 1
+        except PlategaError as e:
+            log.warning("Platega: проверка %s не удалась: %s", pay.provider_ref, e)
+    return n
+
+
+async def platega_loop(app: App, interval: int = 60) -> None:
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await platega_once(app)
+        except Exception:  # noqa: BLE001
+            log.exception("platega_loop")
 
 
 async def reminders_once(app: App) -> int:
