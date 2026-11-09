@@ -14,7 +14,8 @@ from ..config import DAYS_PER_MONTH
 from ..context import App
 from ..partner.client import PartnerError
 from ..providers.cryptopay import CryptoPayError
-from ..services.payments import stars_payment
+from ..providers.platega import PlategaError
+from ..services.payments import check_platega, stars_payment
 from ..ui.nav import HOME, decode
 from ..ui.screens import MONTH_NAMES
 from ..utils import fmt_money
@@ -125,6 +126,28 @@ async def check_usdt(cb: CallbackQuery, app: App) -> None:
         await app.nav.reset(uid, cb.message, [HOME, "sub"])
     elif status == "expired":
         await app.db.transition(pay.id, ("created",), "expired")
+        await cb.answer(T.CHECK_EXPIRED, show_alert=True)
+        await app.nav.back(uid, cb.message)
+    else:
+        await cb.answer(T.CHECK_WAIT, show_alert=True)
+
+
+@router.callback_query(F.data == "a|checkr")
+async def check_rub(cb: CallbackQuery, app: App) -> None:
+    uid = cb.from_user.id
+    opens = await app.db.open_payments(uid, "platega")
+    if not opens:
+        await cb.answer(T.CHECK_NOT_FOUND, show_alert=True)
+        return
+    try:
+        result = await check_platega(app, opens[0])
+    except PlategaError:
+        await cb.answer(T.ALERT_FAILED, show_alert=True)
+        return
+    if result == "paid":
+        await cb.answer(T.CHECK_PAID)
+        await app.nav.reset(uid, cb.message, [HOME, "sub"])
+    elif result == "expired":
         await cb.answer(T.CHECK_EXPIRED, show_alert=True)
         await app.nav.back(uid, cb.message)
     else:
