@@ -1,6 +1,7 @@
 """Все экраны бота. UI отделён от бизнес-логики: логика оплаты – в services/, здесь только вид."""
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from aiogram.types import InlineKeyboardButton
@@ -8,10 +9,12 @@ from aiogram.types import InlineKeyboardButton
 from .. import texts as T
 from ..config import DAYS_PER_MONTH, DEVICES, MONTHS
 from ..providers.cryptopay import CryptoPayError
-from ..services.payments import crypto_payment
+from ..providers.platega import PlategaError
+from ..services.payments import crypto_payment, platega_payment
 from ..utils import esc, fmt_date, fmt_gib, fmt_money, make_qr_png
 from .nav import Ctx, HOME, Screen, back_row, btn, screen
 
+log = logging.getLogger("screens")
 MONTH_NAMES = {1: "1 месяц", 3: "3 месяца", 6: "6 месяцев"}
 
 
@@ -182,8 +185,20 @@ async def pay_usdt(ctx: Ctx, p: dict) -> Screen:
 
 @screen("pay_rub")
 async def pay_rub(ctx: Ctx, p: dict) -> Screen:
-    # Платёжка Platega подключается позже (app/providers/platega.py). Пока – заглушка.
-    return Screen(T.PAY_RUB_SOON, [back_row()])
+    if not ctx.app.platega.enabled:
+        return Screen(T.PAY_RUB_SOON, [back_row()])  # PLATEGA_ENABLED=false или нет ключей
+    kind, months, devices = p["kind"], _int(p, "months"), _int(p, "devices")
+    amount = ctx.settings.price("RUB", months, devices)
+    try:
+        pay = await platega_payment(ctx.app, ctx.tg_id, kind, months, devices, amount,
+                                    f"Master VPN: {MONTH_NAMES[months]}, устройств: {devices}")
+    except PlategaError as e:
+        log.warning("Platega: счёт не создан: %s", e)
+        return Screen(T.PAY_UNAVAILABLE, [back_row()])
+    text = T.PAY_RUB.format(summary=summary(kind, months, devices), price=fmt_money("RUB", amount))
+    rows = [_url(T.BTN_PAY_SBP, pay.invoice_url or ""),
+            [InlineKeyboardButton(text=T.BTN_CHECK, callback_data="a|checkr")], back_row()]
+    return Screen(text, [r for r in rows if r])
 
 
 # --- справочные экраны ---------------------------------------------------------------
