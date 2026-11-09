@@ -80,7 +80,8 @@ async def check_platega(app: "App", pay: PaymentRow) -> str:
     st = await app.platega.status(pay.provider_ref or "")
     status = st["status"]
     if status == "CONFIRMED":
-        if (st["amount"] is not None and st["amount"] != pay.amount) or (st["currency"] not in (None, "RUB")):
+        # Комиссию Platega может добавить сверху: больше цены – нормально, меньше – недоплата
+        if (st["amount"] is not None and st["amount"] < pay.amount) or (st["currency"] not in (None, "RUB")):
             if await app.db.remember_event(f"platega-mismatch:{pay.provider_ref}", "platega.mismatch", ""):
                 await app.notifier.admins(T.A_PLATEGA_MISMATCH.format(
                     tg_id=pay.tg_id, ref=pay.provider_ref, expected=pay.amount, got=st["amount"], cur=st["currency"]))
