@@ -159,6 +159,14 @@ async def test_confirmed_fulfils_once_even_if_checked_twice(shop):
     assert len([c for c in shop.partner.calls if c[0] == "PUT"]) == 1
 
 
+async def test_amount_with_provider_commission_is_fulfilled(shop):
+    api = FakePlategaApi("CONFIRMED", amount=Decimal("108"))      # цена 100 + комиссия Platega
+    app, notes = make_app(shop, api)
+    pay = await _invoice(app)
+    assert await check_platega(app, pay) == "paid"
+    assert shop.notifier.events == [("ok", 7)] and notes.texts == []
+
+
 async def test_pending_waits_and_canceled_expires(shop):
     api = FakePlategaApi("PENDING")
     app, _ = make_app(shop, api)
@@ -175,7 +183,7 @@ async def test_amount_mismatch_is_not_fulfilled_and_admin_alerted_once(shop):
     pay = await _invoice(app)
     assert await check_platega(app, pay) == "pending"
     assert await check_platega(app, pay) == "pending"
-    assert shop.notifier.events == [] and len(notes.texts) == 1 and "сумма не совпала" in notes.texts[0]
+    assert shop.notifier.events == [] and len(notes.texts) == 1 and "сумма меньше цены" in notes.texts[0]
 
 
 # --- колбэк ------------------------------------------------------------------------------
