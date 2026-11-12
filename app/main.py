@@ -15,6 +15,7 @@ from .context import App
 from .db import Database
 from .handlers.admin import build_admin_router
 from .handlers.middleware import ProfileMiddleware, ThrottleMiddleware
+from .handlers.inline import router as inline_router
 from .handlers.user import router as user_router
 from .notify import BotNotifier
 from .partner.client import PartnerClient
@@ -57,6 +58,7 @@ async def main() -> None:
     dp.message.outer_middleware(profile)
     dp.callback_query.outer_middleware(profile)
     dp.include_router(build_admin_router(settings.admin_ids))
+    dp.include_router(inline_router)
     dp.include_router(user_router)
 
     runner = web.AppRunner(build_web_app(app))

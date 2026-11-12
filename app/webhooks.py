@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import logging
+import pathlib
 import time
 
 from aiohttp import web
@@ -127,4 +128,5 @@ def build_web_app(app: App) -> web.Application:
     web_app.router.add_post("/cryptopay-webhook", cryptopay_webhook)
     web_app.router.add_post("/platega-callback", platega_callback)
     web_app.router.add_get("/health", health)
+    web_app.router.add_static("/static", pathlib.Path(__file__).parent / "static")  # картинки для inline-режима
     return web_app
