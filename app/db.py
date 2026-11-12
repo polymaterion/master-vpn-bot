@@ -25,6 +25,10 @@ class UserRow(Base):
     tg_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     nav: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # метка из ?start=<метка>
 
 
 class PaymentRow(Base):
@@ -83,6 +87,10 @@ class ReminderRow(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+def _cut(value: str | None, n: int) -> str | None:
+    return value[:n] if value else None
+
+
 class Database:
     def __init__(self, url: str):
         self.engine = create_async_engine(url, pool_pre_ping=True)
@@ -111,6 +119,54 @@ class Database:
                 s.add(UserRow(tg_id=tg_id, nav=nav))
             else:
                 row.nav = nav
+
+    async def register_user(self, tg_id: int, username: str | None, first_name: str | None,
+                            last_name: str | None, source: str | None) -> bool:
+        """Вызывается на /start. True – пользователь новый. Источник пишется только при первом заходе."""
+        username, first_name, last_name = (username or None), _cut(first_name, 256), _cut(last_name, 256)
+        try:
+            async with self.session() as s, s.begin():
+                row = await s.get(UserRow, tg_id)
+                if row is None:
+                    s.add(UserRow(tg_id=tg_id, nav=[], username=username, first_name=first_name,
+                                  last_name=last_name, source=source))
+                    return True
+                row.username, row.first_name, row.last_name = username, first_name, last_name
+                return False
+        except IntegrityError:  # гонка двух одновременных /start
+            return False
+
+    async def touch_profile(self, tg_id: int, username: str | None, first_name: str | None,
+                            last_name: str | None) -> None:
+        """Обновляет имя и юзернейм уже известного пользователя; новых не создаёт."""
+        async with self.session() as s, s.begin():
+            await s.execute(update(UserRow).where(UserRow.tg_id == tg_id).values(
+                username=username or None, first_name=_cut(first_name, 256), last_name=_cut(last_name, 256)))
+
+    async def paid_user_ids(self) -> set[int]:
+        async with self.session() as s:
+            res = await s.execute(select(PaymentRow.tg_id).where(PaymentRow.status == "fulfilled").distinct())
+            return set(res.scalars())
+
+    async def list_users(self) -> list[UserRow]:
+        async with self.session() as s:
+            return list((await s.execute(select(UserRow).order_by(UserRow.created_at, UserRow.tg_id))).scalars())
+
+    async def source_stats(self, since: datetime | None = None) -> list[dict]:
+        """По источникам: сколько пользователей пришло и сколько из них хоть раз оплатили."""
+        async with self.session() as s:
+            q = select(UserRow.tg_id, UserRow.source)
+            if since is not None:
+                q = q.where(UserRow.created_at >= since)
+            users = (await s.execute(q)).all()
+        paid = await self.paid_user_ids()
+        acc: dict[str | None, list[int]] = {}
+        for tg_id, source in users:
+            row = acc.setdefault(source, [0, 0])
+            row[0] += 1
+            row[1] += tg_id in paid
+        out = [{"source": k, "users": v[0], "paid": v[1]} for k, v in acc.items()]
+        return sorted(out, key=lambda r: (-r["users"], r["source"] or ""))
 
     # --- платежи ---------------------------------------------------------------
     async def add_payment(self, row: PaymentRow) -> PaymentRow:

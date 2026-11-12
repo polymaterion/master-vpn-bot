@@ -14,7 +14,7 @@ from .config import Settings
 from .context import App
 from .db import Database
 from .handlers.admin import build_admin_router
-from .handlers.middleware import ThrottleMiddleware
+from .handlers.middleware import ProfileMiddleware, ThrottleMiddleware
 from .handlers.user import router as user_router
 from .notify import BotNotifier
 from .partner.client import PartnerClient
@@ -53,6 +53,9 @@ async def main() -> None:
     throttle = ThrottleMiddleware(settings.throttle_seconds)
     dp.message.outer_middleware(throttle)
     dp.callback_query.outer_middleware(throttle)
+    profile = ProfileMiddleware()
+    dp.message.outer_middleware(profile)
+    dp.callback_query.outer_middleware(profile)
     dp.include_router(build_admin_router(settings.admin_ids))
     dp.include_router(user_router)
 

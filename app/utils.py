@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import html
 import io
 from datetime import datetime, timezone
@@ -49,3 +50,12 @@ def make_qr_png(data: str) -> bytes:
     buf = io.BytesIO()
     qrcode.make(data).save(buf, "PNG")
     return buf.getvalue()
+
+
+_SOURCE_BAD = re.compile(r"[^a-z0-9_-]")
+
+
+def parse_source(arg: str | None) -> str | None:
+    """Метка источника из /start <метка>: латиница, цифры, _ и -, до 64 символов, без регистра."""
+    cleaned = _SOURCE_BAD.sub("", (arg or "").strip().lower())[:64]
+    return cleaned or None
