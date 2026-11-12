@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from ..context import App
 from ..notify import PROVIDER_TITLES
 from ..partner.client import PartnerError
-from ..utils import fmt_date, fmt_gib, fmt_money, parse_iso
+from ..services.users import build_users_csv, format_sources
+from ..utils import utcnow, fmt_date, fmt_gib, fmt_money, parse_iso
 
 log = logging.getLogger("admin")
 
@@ -63,6 +65,23 @@ def build_admin_router(admin_ids: tuple[int, ...]) -> Router:
             f"Триалов ещё помещается: ~{trial.get('remaining_estimate', 0)}\n\n"
             f"За 7 суток: клиентов новых {stats['clients_new']}, активных {stats['clients_active']}, "
             f"заказов {stats['payments']}", parse_mode=None)
+
+    @router.message(Command("users"))
+    async def cmd_users(message: Message, app: App) -> None:
+        users = await app.db.list_users()
+        data = build_users_csv(users, await app.db.paid_user_ids())
+        name = f"users_{utcnow():%Y%m%d_%H%M}.csv"
+        await message.answer_document(BufferedInputFile(data, filename=name), caption=f"Пользователей: {len(users)}")
+
+    @router.message(Command("sources"))
+    async def cmd_sources(message: Message, command: CommandObject, app: App) -> None:
+        arg = (command.args or "").strip()
+        days = int(arg) if arg.isdigit() and 0 < int(arg) <= 3650 else None
+        since = utcnow() - timedelta(days=days) if days else None
+        rows = await app.db.source_stats(since)
+        me = await app.bot.me()
+        await message.answer(format_sources(rows, me.username or "", days), parse_mode=None,
+                             disable_web_page_preview=True)
 
     @router.message(Command("pending"))
     async def cmd_pending(message: Message, app: App) -> None:

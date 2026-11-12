@@ -32,3 +32,26 @@ class ThrottleMiddleware(BaseMiddleware):
             cutoff = now - 60
             self._last = {k: v for k, v in self._last.items() if v > cutoff}
         return await handler(event, data)
+
+
+class ProfileMiddleware(BaseMiddleware):
+    """Держит в БД актуальные имя и юзернейм уже известных пользователей (пишет только при изменении)."""
+
+    def __init__(self) -> None:
+        self._seen: dict[int, tuple] = {}
+
+    async def __call__(self, handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+                       event: TelegramObject, data: dict[str, Any]) -> Any:
+        user = getattr(event, "from_user", None)
+        app = data.get("app")
+        if user is not None and app is not None and not user.is_bot:
+            profile = (user.username, user.first_name, user.last_name)
+            if self._seen.get(user.id) != profile:
+                try:
+                    await app.db.touch_profile(user.id, *profile)
+                    self._seen[user.id] = profile
+                except Exception:  # noqa: BLE001 — статистика не должна ломать бота
+                    pass
+                if len(self._seen) > 50000:
+                    self._seen.clear()
+        return await handler(event, data)

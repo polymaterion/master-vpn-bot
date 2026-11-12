@@ -5,7 +5,7 @@ import contextlib
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import (CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message,
                            PreCheckoutQuery)
 
@@ -18,15 +18,18 @@ from ..providers.platega import PlategaError
 from ..services.payments import check_platega, stars_payment
 from ..ui.nav import HOME, decode
 from ..ui.screens import MONTH_NAMES
-from ..utils import fmt_money
+from ..utils import fmt_money, parse_source
 
 log = logging.getLogger("user")
 router = Router()
 
 
 @router.message(CommandStart())
-async def start(message: Message, app: App) -> None:
-    await app.nav.start(message.from_user.id)
+async def start(message: Message, command: CommandObject, app: App) -> None:
+    u = message.from_user
+    # запись пользователя и источника (?start=<метка>); источник фиксируется только при первом заходе
+    await app.db.register_user(u.id, u.username, u.first_name, u.last_name, parse_source(command.args))
+    await app.nav.start(u.id)
 
 
 @router.callback_query(F.data == "b")
