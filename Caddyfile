@@ -9,6 +9,9 @@
 	handle /platega-callback {
 		reverse_proxy bot:8080
 	}
+	handle /static/* {
+		reverse_proxy bot:8080
+	}
 	handle /health {
 		reverse_proxy bot:8080
 	}
