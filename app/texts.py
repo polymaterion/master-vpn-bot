@@ -91,10 +91,10 @@ A_PLATEGA_ALERT = ("⚠️ Platega: {status}\nПокупатель: {tg_id}\nС�
                    "Статус заказа: {order}\nАвтоматических действий нет — решите вручную (/user {tg_id}).")
 A_BALANCE_LOW = "🪙 В Кошельке {balance} ₽ — следующий такой же заказ может не пройти. Пополните в кабинете."
 
-# Inline-режим (@бот в любом чате): текст на туркменском по заказу, менять здесь.
+# Inline-режим (@бот в любом чате): текст карточки, менять здесь.
 INLINE_TITLE = "Master VPN"
-INLINE_DESCRIPTION = "3 gün mugt barlap görüň"
-INLINE_CAPTION = ("Master VPN – amatly we kepilli\n\n"
-                  "Belyý spisok wagtyndada işleyär\n\n"
-                  "3 gün mugt barlap görüň ⬇️")
-INLINE_BUTTON = "🎁 3 gün mugt"
+INLINE_DESCRIPTION = "Первые 3 дня бесплатно"
+INLINE_CAPTION = ("Master VPN\n\n"
+                  "Интернет без лишних границ, как и должно быть.\n\n"
+                  "Подключается за пару кликов. Выбери тариф и попробуй сам, первые 3 дня бесплатно 👇")
+INLINE_BUTTON = "Подключить VPN"
