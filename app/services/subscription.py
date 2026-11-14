@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ..partner.client import PartnerError
 from ..utils import parse_iso, utcnow
 
 if TYPE_CHECKING:
@@ -54,3 +55,17 @@ class Sub:
 async def load_sub(app: "App", tg_id: int) -> Sub:
     user = await app.partner.user(f"tg-{tg_id}")
     return Sub(user=user, has_paid=await app.db.has_paid(tg_id), now=utcnow())
+
+
+async def reset_devices(app: "App", tg_id: int) -> int:
+    """Удаляет все устройства клиента (ссылка остаётся прежней). Возвращает, сколько удалено."""
+    ext = f"tg-{tg_id}"
+    removed = 0
+    for d in (await app.partner.devices(ext)).get("devices", []):
+        try:
+            await app.partner.delete_device(ext, d["device_id"])
+            removed += 1
+        except PartnerError as e:
+            if e.status != 404:  # уже удалено – не страшно
+                raise
+    return removed
