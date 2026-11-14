@@ -262,3 +262,25 @@ async def test_cancel_does_not_touch_already_paid_invoice(db, settings):
     await cancel_invoice(cb, app)
     assert cb.answers[-1][1] is True and not cb.message.deleted
     assert (await db.get_payment(payload)).status == "paid"
+
+
+async def test_reset_devices_button_and_service(db, settings):
+    from app.db import PaymentRow
+    from app.services.subscription import reset_devices
+    app = make_app(db, settings, user=paid_user(devices=1), devices=1)
+    await app.db.add_payment(PaymentRow(
+        id="p9", tg_id=5, provider="stars", kind="buy", months=1, devices=1, amount=1, currency="STARS",
+        status="fulfilled"))
+    await app.nav.push(5, None, "sub", {})
+    assert any("Сбросить устройства" in b.text for b in buttons(app.bot.sent[-1]))
+    # без устройств кнопки нет
+    app2 = make_app(db, settings, user=paid_user(devices=1), devices=0)
+    await app2.nav.push(5, None, "sub", {})
+    assert not any("Сбросить устройства" in b.text for b in buttons(app2.bot.sent[-1]))
+
+    deleted = []
+
+    async def delete_device(ext, dev):
+        deleted.append((ext, dev))
+    app.partner.delete_device = delete_device
+    assert await reset_devices(app, 5) == 1 and deleted == [("tg-5", "0")]
