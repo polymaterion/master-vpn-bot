@@ -18,6 +18,7 @@ from ..providers.platega import PlategaError
 from ..services.payments import check_platega, stars_payment
 from ..ui.nav import HOME, decode
 from ..ui.screens import MONTH_NAMES
+from ..services.subscription import reset_devices
 from ..utils import fmt_money, parse_source
 
 log = logging.getLogger("user")
@@ -68,6 +69,19 @@ async def trial(cb: CallbackQuery, app: App) -> None:
             await cb.answer(T.ALERT_FAILED, show_alert=True)
         return
     await app.nav.reset(uid, cb.message, [HOME, "sub"], notice=T.TRIAL_GIVEN)
+    await cb.answer()
+
+
+@router.callback_query(F.data == "a|resetdev")
+async def reset_devices_action(cb: CallbackQuery, app: App) -> None:
+    uid = cb.from_user.id
+    try:
+        await reset_devices(app, uid)
+    except Exception as e:  # noqa: BLE001
+        log.warning("сброс устройств tg-%s: %s", uid, e)
+        await cb.answer(T.ALERT_FAILED, show_alert=True)
+        return
+    await app.nav.reset(uid, cb.message, [HOME, "sub"], notice=T.DEVICES_RESET_DONE)
     await cb.answer()
 
 
