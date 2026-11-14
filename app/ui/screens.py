@@ -84,8 +84,16 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
         rows.append([btn(T.BTN_RENEW, "renew_term")])
     if sub.can_buy:
         rows.append([btn(T.BTN_BUY, "buy_term")])
+    if used:
+        rows.append([btn(T.BTN_RESET_DEVICES, "reset_devices")])
     rows.append(back_row())
     return Screen(text, rows)
+
+
+@screen("reset_devices")
+async def reset_devices_confirm(ctx: Ctx, p: dict) -> Screen:
+    rows = [[InlineKeyboardButton(text=T.BTN_RESET_CONFIRM, callback_data="a|resetdev")], back_row()]
+    return Screen(T.RESET_DEVICES, rows)
 
 
 @screen("sub_link")
