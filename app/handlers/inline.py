@@ -14,13 +14,14 @@ from aiogram.types import (InlineKeyboardButton, InlineKeyboardMarkup, InlineQue
 
 from .. import texts as T
 from ..context import App
+from ..emoji import plain
 
 router = Router()
 log = logging.getLogger("inline")
 INLINE_SOURCE = "inline"
 
 
-def build_results(public_base_url: str, bot_username: str) -> list:
+def build_results(public_base_url: str, bot_username: str, *, premium: bool = True) -> list:
     """Карточка в списке: маленькая иконка + название + описание.
     В чат уходит текст, а картинка показывается превью ссылки над ним (как у @tribute)."""
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
@@ -30,26 +31,27 @@ def build_results(public_base_url: str, bot_username: str) -> list:
                                  show_above_text=True) if https else None
     return [InlineQueryResultArticle(
         id="promo", title=T.INLINE_TITLE, description=T.INLINE_DESCRIPTION,
-        input_message_content=InputTextMessageContent(message_text=T.INLINE_CAPTION,
-                                                      link_preview_options=preview),
+        input_message_content=InputTextMessageContent(
+            message_text=T.INLINE_CAPTION if premium else plain(T.INLINE_CAPTION),
+            parse_mode="HTML", link_preview_options=preview),
         reply_markup=kb,
         thumbnail_url=f"{public_base_url}/static/inline_thumb.jpg" if https else None,
         thumbnail_width=320, thumbnail_height=320)]
-
-
-def _text_only(bot_username: str) -> list:
-    return build_results("", bot_username)
 
 
 @router.inline_query()
 async def inline(query: InlineQuery, app: App) -> None:
     me = await app.bot.me()
     log.info("inline-запрос от %s: %r", query.from_user.id, query.query)
-    # карточка одинакова для всех – Telegram может кешировать ответ
-    try:
-        await query.answer(build_results(app.settings.public_base_url, me.username or ""),
-                           cache_time=60, is_personal=False)
-    except TelegramAPIError as e:
-        # например, Telegram не смог скачать картинку – отдаём хотя бы текст
-        log.error("inline: ответ с картинкой отклонён (%s), отправляю только текст", e)
-        await query.answer(_text_only(me.username or ""), cache_time=60, is_personal=False)
+    base, name = app.settings.public_base_url, me.username or ""
+    # от лучшего к простому: премиум-эмодзи + картинка, обычные эмодзи + картинка, только текст
+    attempts = [(base, True), (base, False), ("", False)]
+    for i, (url, premium) in enumerate(attempts):
+        try:
+            # карточка одинакова для всех – Telegram может кешировать ответ
+            await query.answer(build_results(url, name, premium=premium), cache_time=60, is_personal=False)
+            return
+        except TelegramAPIError as e:
+            log.error("inline: ответ отклонён (%s), пробую проще", e)
+            if i == len(attempts) - 1:
+                raise

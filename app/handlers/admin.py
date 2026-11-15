@@ -7,6 +7,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from .. import texts as T
 from ..context import App
 from ..notify import PROVIDER_TITLES
 from ..partner.client import PartnerError
@@ -131,7 +132,7 @@ def build_admin_router(admin_ids: tuple[int, ...]) -> Router:
                 await app.bot.refund_star_payment(user_id=pay.tg_id, telegram_payment_charge_id=pay.provider_ref)
                 await app.db.transition(pay.id, ("failed",), "refunded")
                 await app.db.audit(admin, "refund", pay.id, pay.provider_ref)
-                await app.notifier.send(pay.tg_id, "↩️ Звёзды за неудавшуюся покупку возвращены на ваш счёт.")
+                await app.notifier.send(pay.tg_id, T.N_REFUND)
                 await cb.message.answer("Звёзды возвращены")
         except PartnerError as e:
             await cb.answer(f"Ошибка API: {e.code or e.status}", show_alert=True)
