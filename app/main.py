@@ -11,6 +11,7 @@ from aiohttp import web
 
 from . import jobs
 from .config import Settings
+from .emoji import PremiumEmojiMiddleware
 from .context import App
 from .db import Database
 from .handlers.admin import build_admin_router
@@ -30,6 +31,7 @@ from .webhooks import build_web_app
 
 def build_app(settings: Settings) -> App:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot.session.middleware(PremiumEmojiMiddleware())
     db = Database(settings.database_url)
     partner = PartnerClient(settings.partner_api_base, settings.partner_api_key)
     plans = PlanCatalog(partner)
