@@ -18,7 +18,7 @@ from ..providers.platega import PlategaError
 from ..services.payments import check_platega, stars_payment
 from ..ui.nav import HOME, decode
 from ..ui.screens import MONTH_NAMES
-from ..services.subscription import reset_devices
+from ..services.subscription import refresh_link
 from ..utils import fmt_money, parse_source
 
 log = logging.getLogger("user")
@@ -68,20 +68,21 @@ async def trial(cb: CallbackQuery, app: App) -> None:
             log.warning("триал tg-%s: %s", uid, e)
             await cb.answer(T.ALERT_FAILED, show_alert=True)
         return
+    await app.db.mark_trial(uid)
     await app.nav.reset(uid, cb.message, [HOME, "sub"], notice=T.TRIAL_GIVEN)
     await cb.answer()
 
 
-@router.callback_query(F.data == "a|resetdev")
-async def reset_devices_action(cb: CallbackQuery, app: App) -> None:
+@router.callback_query(F.data == "a|refreshlink")
+async def refresh_link_action(cb: CallbackQuery, app: App) -> None:
     uid = cb.from_user.id
     try:
-        await reset_devices(app, uid)
+        await refresh_link(app, uid)
     except Exception as e:  # noqa: BLE001
-        log.warning("сброс устройств tg-%s: %s", uid, e)
+        log.warning("обновление ссылки tg-%s: %s", uid, e)
         await cb.answer(T.ALERT_FAILED, show_alert=True)
         return
-    await app.nav.reset(uid, cb.message, [HOME, "sub"], notice=T.DEVICES_RESET_DONE)
+    await app.nav.reset(uid, cb.message, [HOME, "sub"], notice=T.LINK_REFRESHED)
     await cb.answer()
 
 
