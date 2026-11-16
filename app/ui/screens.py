@@ -79,21 +79,24 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
     text = T.SUB_CARD.format(
         status=status, until=fmt_date(sub.expires_at), devices_used=used, devices_limit=sub.device_limit,
         used=fmt_gib(u.get("traffic_used_bytes")), limit=fmt_gib(u.get("traffic_limit_bytes")))
-    rows = [[btn(T.BTN_LINK, "sub_link"), btn(T.BTN_QR, "sub_qr")]]
+    url = u.get("subscription_url") or ""
+    # кнопка открывает ссылку провайдера: в браузере это страница подключения с кнопками приложений
+    connect = (InlineKeyboardButton(text=T.BTN_CONNECT, url=url) if url.startswith("https://")
+               else btn(T.BTN_LINK, "sub_link"))
+    rows = [[connect, btn(T.BTN_QR, "sub_qr")]]
     if sub.can_renew:
         rows.append([btn(T.BTN_RENEW, "renew_term")])
     if sub.can_buy:
         rows.append([btn(T.BTN_BUY, "buy_term")])
-    if used:
-        rows.append([btn(T.BTN_RESET_DEVICES, "reset_devices")])
+    rows.append([btn(T.BTN_REFRESH_LINK, "refresh_link")])
     rows.append(back_row())
     return Screen(text, rows)
 
 
-@screen("reset_devices")
-async def reset_devices_confirm(ctx: Ctx, p: dict) -> Screen:
-    rows = [[InlineKeyboardButton(text=T.BTN_RESET_CONFIRM, callback_data="a|resetdev")], back_row()]
-    return Screen(T.RESET_DEVICES, rows)
+@screen("refresh_link")
+async def refresh_link_confirm(ctx: Ctx, p: dict) -> Screen:
+    rows = [[InlineKeyboardButton(text=T.BTN_REFRESH_CONFIRM, callback_data="a|refreshlink")], back_row()]
+    return Screen(T.REFRESH_LINK, rows)
 
 
 @screen("sub_link")
