@@ -32,12 +32,14 @@ async def test_csv_and_stats(db):
     await db.register_user(1, "ann", "=cmd", None, "yt")
     await db.register_user(2, None, "Бob", None, "yt")
     await db.register_user(3, None, "C", None, None)
+    await db.mark_trial(2)
+    await db.mark_trial(2)  # повторно ничего не меняет
     await db.add_payment(PaymentRow(id="p1", tg_id=1, provider="stars", kind="buy", months=1, devices=1,
                                     amount=1, currency="STARS", status="fulfilled"))
     rows = list(csv.reader(io.StringIO(build_users_csv(await db.list_users(), await db.paid_user_ids()).decode("utf-8-sig"))))
     assert rows[0][:5] == ["tg_id", "username", "first_name", "last_name", "source"]
     assert rows[1][2] == "'=cmd" and rows[1][6] == "yes" and rows[2][6] == "no"
     stats = await db.source_stats()
-    assert stats[0] == {"source": "yt", "users": 2, "paid": 1}
+    assert stats[0] == {"source": "yt", "users": 2, "trial": 1, "paid": 1, "repeat": 0}
     assert await db.source_stats(utcnow() + timedelta(days=1)) == []
-    assert "yt: 2 польз., оплатили 1 (50%)" in format_sources(stats, "bot", None)
+    assert "yt: 2 польз. · триал 1 · оплатили 1 (50%) · повторно 0" in format_sources(stats, "bot", None)

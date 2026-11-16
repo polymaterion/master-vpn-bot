@@ -47,7 +47,7 @@ def test_texts_use_premium_markup_and_plain_strips_it():
     assert '<tg-emoji emoji-id="5778570255555105942">🛡</tg-emoji>' in T.HOME
     assert emoji.plain(T.HOME).startswith("🛡 <b>")
     assert "<tg-emoji" not in emoji.plain(T.N_REFUND) and "↩️" in emoji.plain(T.N_REFUND)
-    for name in ("SUB_CARD", "SUB_EXPIRED", "N_PAID_OK", "RESET_DEVICES", "PAY_USDT", "N_REMIND"):
+    for name in ("SUB_CARD", "SUB_EXPIRED", "N_PAID_OK", "REFRESH_LINK", "PAY_USDT", "N_REMIND"):
         T_val = getattr(T, name)
         assert "<tg-emoji" in T_val
     T.SUB_EXPIRED.format(until="x"), T.SUB_CARD.format(status=T.STATUS_ACTIVE, until="x", devices_used=1,

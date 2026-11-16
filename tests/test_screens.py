@@ -264,23 +264,26 @@ async def test_cancel_does_not_touch_already_paid_invoice(db, settings):
     assert (await db.get_payment(payload)).status == "paid"
 
 
-async def test_reset_devices_button_and_service(db, settings):
-    from app.db import PaymentRow
-    from app.services.subscription import reset_devices
-    app = make_app(db, settings, user=paid_user(devices=1), devices=1)
-    await app.db.add_payment(PaymentRow(
-        id="p9", tg_id=5, provider="stars", kind="buy", months=1, devices=1, amount=1, currency="STARS",
-        status="fulfilled"))
+async def test_sub_card_connect_url_button_and_refresh(db, settings):
+    from app.services.subscription import refresh_link
+    user = paid_user(devices=1)
+    user["subscription_url"] = "https://sub.example.net/sub/sub_abc"
+    app = make_app(db, settings, user=user, devices=1)
     await app.nav.push(5, None, "sub", {})
-    assert any("Сбросить устройства" in b.text for b in buttons(app.bot.sent[-1]))
-    # без устройств кнопки нет
-    app2 = make_app(db, settings, user=paid_user(devices=1), devices=0)
-    await app2.nav.push(5, None, "sub", {})
-    assert not any("Сбросить устройства" in b.text for b in buttons(app2.bot.sent[-1]))
+    btns = buttons(app.bot.sent[-1])
+    connect = next(b for b in btns if "Подключить" in b.text)
+    assert connect.url == "https://sub.example.net/sub/sub_abc"
+    assert any("Обновить ссылку" in b.text for b in btns) and not any("Сбросить" in b.text for b in btns)
 
-    deleted = []
+    calls = []
 
     async def delete_device(ext, dev):
-        deleted.append((ext, dev))
+        calls.append(("del", ext, dev))
+
+    async def rotate(ext):
+        calls.append(("rotate", ext))
+        return {"subscription_url": "new"}
     app.partner.delete_device = delete_device
-    assert await reset_devices(app, 5) == 1 and deleted == [("tg-5", "0")]
+    app.partner.rotate = rotate
+    assert await refresh_link(app, 5) == {"subscription_url": "new"}
+    assert calls == [("del", "tg-5", "0"), ("rotate", "tg-5")]  # сначала слоты, потом новая ссылка
