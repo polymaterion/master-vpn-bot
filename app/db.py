@@ -29,6 +29,7 @@ class UserRow(Base):
     first_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # метка из ?start=<метка>
+    trial_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # когда выдан пробный доступ
 
 
 class PaymentRow(Base):
@@ -143,30 +144,42 @@ class Database:
             await s.execute(update(UserRow).where(UserRow.tg_id == tg_id).values(
                 username=username or None, first_name=_cut(first_name, 256), last_name=_cut(last_name, 256)))
 
-    async def paid_user_ids(self) -> set[int]:
+    async def mark_trial(self, tg_id: int) -> None:
+        async with self.session() as s, s.begin():
+            await s.execute(update(UserRow).where(UserRow.tg_id == tg_id, UserRow.trial_at.is_(None))
+                            .values(trial_at=utcnow()))
+
+    async def payment_counts(self) -> dict[int, int]:
+        """tg_id -> число оплаченных (выданных) заказов."""
         async with self.session() as s:
-            res = await s.execute(select(PaymentRow.tg_id).where(PaymentRow.status == "fulfilled").distinct())
-            return set(res.scalars())
+            res = await s.execute(select(PaymentRow.tg_id, func.count()).where(PaymentRow.status == "fulfilled")
+                                  .group_by(PaymentRow.tg_id))
+            return {tg: n for tg, n in res.all()}
+
+    async def paid_user_ids(self) -> set[int]:
+        return set(await self.payment_counts())
 
     async def list_users(self) -> list[UserRow]:
         async with self.session() as s:
             return list((await s.execute(select(UserRow).order_by(UserRow.created_at, UserRow.tg_id))).scalars())
 
     async def source_stats(self, since: datetime | None = None) -> list[dict]:
-        """По источникам: сколько пользователей пришло и сколько из них хоть раз оплатили."""
+        """По источникам: пришло, взяли триал, оплатили, оплатили повторно."""
         async with self.session() as s:
-            q = select(UserRow.tg_id, UserRow.source)
+            q = select(UserRow.tg_id, UserRow.source, UserRow.trial_at)
             if since is not None:
                 q = q.where(UserRow.created_at >= since)
             users = (await s.execute(q)).all()
-        paid = await self.paid_user_ids()
-        acc: dict[str | None, list[int]] = {}
-        for tg_id, source in users:
-            row = acc.setdefault(source, [0, 0])
-            row[0] += 1
-            row[1] += tg_id in paid
-        out = [{"source": k, "users": v[0], "paid": v[1]} for k, v in acc.items()]
-        return sorted(out, key=lambda r: (-r["users"], r["source"] or ""))
+        counts = await self.payment_counts()
+        acc: dict[str | None, dict] = {}
+        for tg_id, source, trial_at in users:
+            row = acc.setdefault(source, {"source": source, "users": 0, "trial": 0, "paid": 0, "repeat": 0})
+            row["users"] += 1
+            row["trial"] += trial_at is not None
+            n = counts.get(tg_id, 0)
+            row["paid"] += n >= 1
+            row["repeat"] += n >= 2
+        return sorted(acc.values(), key=lambda r: (-r["users"], r["source"] or ""))
 
     # --- платежи ---------------------------------------------------------------
     async def add_payment(self, row: PaymentRow) -> PaymentRow:
