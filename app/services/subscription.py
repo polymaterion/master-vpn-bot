@@ -69,3 +69,9 @@ async def reset_devices(app: "App", tg_id: int) -> int:
             if e.status != 404:  # уже удалено – не страшно
                 raise
     return removed
+
+
+async def refresh_link(app: "App", tg_id: int) -> dict:
+    """Сбрасывает все устройства клиента и выпускает новую ссылку-подписку (старая перестаёт работать)."""
+    await reset_devices(app, tg_id)   # сначала слоты: если выпуск ссылки сорвётся, старая ссылка ещё рабочая
+    return await app.partner.rotate(f"tg-{tg_id}")

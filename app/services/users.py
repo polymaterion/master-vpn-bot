@@ -34,9 +34,11 @@ def format_sources(rows: list[dict], bot_username: str, days: int | None) -> str
     for r in rows[:40]:
         name = r["source"] or "без метки (прямой заход)"
         pct = f"{r['paid'] * 100 / r['users']:.0f}%" if r["users"] else "–"
-        lines.append(f"• {name}: {r['users']} польз., оплатили {r['paid']} ({pct})")
+        lines.append(f"• {name}: {r['users']} польз. · триал {r['trial']} · оплатили {r['paid']} ({pct})"
+                     f" · повторно {r['repeat']}")
     if len(rows) > 40:
         lines.append(f"… и ещё {len(rows) - 40}")
+    lines.append("\nТриал считается только с момента включения этого учёта.")
     lines.append(f"\nСсылка с меткой: https://t.me/{bot_username}?start=МЕТКА\n"
                  "Метка: латиница, цифры, _ и -, до 64 символов, например yt_ivan или tg_chan_nov.")
     return "\n".join(lines)
