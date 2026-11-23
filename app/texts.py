@@ -68,7 +68,7 @@ ALERT_ALREADY_PAID = "Этот счёт уже оплачен"
 DOWNLOAD = tg("download") + " <b>Скачать VPN</b>\n\nУстановите приложение, затем добавьте ссылку-подписку из раздела «Моя подписка»."
 BTN_ANDROID, BTN_IOS, BTN_WINDOWS = "Android", "iOS", "Windows"
 INFO = tg("info") + " <b>Информация</b>"
-BTN_POLICY, BTN_TERMS = "Политика", "Условия"
+BTN_POLICY, BTN_TERMS = "Политика конфиденциальности", "Пользовательское соглашение"
 
 ERROR_SCREEN = tg("warn") + " Сервис временно недоступен. Попробуйте через минуту."
 ALERT_FAST = "Не так быстро"
