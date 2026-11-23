@@ -173,7 +173,7 @@ async def test_download_and_info_buttons(db, settings):
     await app.nav.push(5, None, "download")
     assert [b.text for b in buttons(app.bot.sent[-1])] == ["Android", "iOS", "Windows", "⬅️ Назад"]
     await app.nav.push(5, None, "info")
-    assert [b.text for b in buttons(app.bot.sent[-1])] == ["Политика", "Условия", "⬅️ Назад"]
+    assert [b.text for b in buttons(app.bot.sent[-1])] == ["Политика конфиденциальности", "Пользовательское соглашение", "⬅️ Назад"]
 
 
 def test_menu_only_on_start_command():
@@ -287,3 +287,21 @@ async def test_sub_card_connect_url_button_and_refresh(db, settings):
     app.partner.rotate = rotate
     assert await refresh_link(app, 5) == {"subscription_url": "new"}
     assert calls == [("del", "tg-5", "0"), ("rotate", "tg-5")]  # сначала слоты, потом новая ссылка
+
+
+async def test_sub_card_one_button_per_row_and_blue_connect(db, settings):
+    user = paid_user(devices=1)
+    user["subscription_url"] = "https://sub.example.net/sub/sub_abc"
+    app = make_app(db, settings, user=user, devices=1)
+    await app.nav.push(5, None, "sub", {})
+    rows = app.bot.sent[-1]["kb"].inline_keyboard
+    assert all(len(r) == 1 for r in rows)
+    assert "Подключить" in rows[0][0].text and rows[0][0].style == "primary"
+    assert "QR" in rows[1][0].text
+
+
+def test_padded_text_makes_screens_equal_width():
+    from app.ui import nav
+    out = nav.padded("Коротко")
+    assert out.startswith("Коротко\n") and set(out.split("\n")[1]) == {chr(0x2800)}
+    assert len(out.split("\n")[1]) == nav.SCREEN_PAD
