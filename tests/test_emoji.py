@@ -66,7 +66,7 @@ def test_inline_premium_and_plain():
     assert "<tg-emoji" not in r.input_message_content.message_text and r.input_message_content.message_text.endswith("👇")
 
 
-async def test_middleware_adds_icons_and_falls_back_once():
+async def test_middleware_adds_icons_and_falls_back():
     from aiogram.exceptions import TelegramBadRequest
     from aiogram.methods import SendMessage
 
@@ -78,18 +78,44 @@ async def test_middleware_adds_icons_and_falls_back_once():
             raise TelegramBadRequest(method=method, message="Bad Request: custom emoji not allowed")
         return "ok"
 
+    def new_method():
+        return SendMessage(chat_id=1, text=T.HOME.format(brand="X"), reply_markup=kb("📱 Моя подписка"))
+
     mw = emoji.PremiumEmojiMiddleware()
-    method = SendMessage(chat_id=1, text=T.HOME.format(brand="X"), reply_markup=kb("📱 Моя подписка"))
     try:
+        method = new_method()
         assert await mw(make_request, None, method) == "ok"
         assert calls[0][1] == ["5920332557466997677"] and "<tg-emoji" in calls[0][0]
         assert calls[1][1] == [None] and "<tg-emoji" not in calls[1][0]
         assert method.reply_markup.inline_keyboard[0][0].text == "📱 Моя подписка"
-        assert emoji._runtime_off is True
-        # дальше сразу обычные эмодзи, без лишнего запроса
+        assert emoji._runtime_off is False      # одного отката мало, премиум остаётся включённым
+        await mw(make_request, None, new_method())
+        await mw(make_request, None, new_method())
+        assert emoji._runtime_off is True       # три отката подряд – дальше только обычные эмодзи
         calls.clear()
-        m2 = SendMessage(chat_id=1, text=T.HOME.format(brand="X"), reply_markup=kb("📱 Моя подписка"))
-        await mw(make_request, None, m2)
+        await mw(make_request, None, new_method())
         assert len(calls) == 1 and "<tg-emoji" not in calls[0][0]
     finally:
-        emoji._runtime_off = False
+        emoji._runtime_off, emoji._fallbacks = False, 0
+
+
+async def test_unrelated_bad_request_does_not_disable_premium():
+    from aiogram.exceptions import TelegramBadRequest
+    from aiogram.methods import EditMessageText
+
+    async def make_request(bot, method):
+        raise TelegramBadRequest(method=method, message="Bad Request: message is not modified")
+
+    mw = emoji.PremiumEmojiMiddleware()
+    try:
+        for _ in range(5):
+            method = EditMessageText(chat_id=1, message_id=2, text=T.HOME.format(brand="X"),
+                                     reply_markup=kb("📱 Моя подписка"))
+            try:
+                await mw(make_request, None, method)
+                raise AssertionError("ошибка должна дойти до вызывающего кода")
+            except TelegramBadRequest:
+                pass
+        assert emoji._runtime_off is False and emoji._fallbacks == 0
+    finally:
+        emoji._runtime_off, emoji._fallbacks = False, 0
