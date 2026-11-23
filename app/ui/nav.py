@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Awaitable, Callable
@@ -85,8 +86,19 @@ def screen(name: str) -> Callable[[ScreenFn], ScreenFn]:
     return deco
 
 
+# Невидимая строка из «пустых» символов Брайля в конце текста растягивает пузырь сообщения до одной ширины
+# у всех экранов, чтобы подписи кнопок не обрезались. Ширину подбирают под телефон: SCREEN_PAD в .env
+# (больше – шире; если внизу появилась лишняя пустая строка – меньше; 0 – выключить).
+SCREEN_PAD = max(0, int(os.environ.get("SCREEN_PAD", "30") or 0))
+
+
+def padded(text: str) -> str:
+    return f"{text}\n{chr(0x2800) * SCREEN_PAD}" if SCREEN_PAD else text
+
+
 async def show(bot: Bot, chat_id: int, target: Message | None, scr: Screen) -> None:
     """Правит существующее сообщение; новое – только когда меняется тип (текст ⇄ фото) или цели нет."""
+    scr.text = padded(scr.text)
     if target is not None:
         if scr.photo is None and not target.photo:
             try:

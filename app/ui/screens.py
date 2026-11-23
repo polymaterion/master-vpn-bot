@@ -81,9 +81,10 @@ async def sub_card(ctx: Ctx, p: dict) -> Screen:
         used=fmt_gib(u.get("traffic_used_bytes")), limit=fmt_gib(u.get("traffic_limit_bytes")))
     url = u.get("subscription_url") or ""
     # кнопка открывает ссылку провайдера: в браузере это страница подключения с кнопками приложений
-    connect = (InlineKeyboardButton(text=T.BTN_CONNECT, url=url) if url.startswith("https://")
-               else btn(T.BTN_LINK, "sub_link"))
-    rows = [[connect, btn(T.BTN_QR, "sub_qr")]]
+    connect = (InlineKeyboardButton(text=T.BTN_CONNECT, url=url, style="primary") if url.startswith("https://")
+               else InlineKeyboardButton(text=T.BTN_LINK, callback_data=btn(T.BTN_LINK, "sub_link").callback_data,
+                                         style="primary"))
+    rows = [[connect], [btn(T.BTN_QR, "sub_qr")]]  # каждая кнопка – отдельный ряд
     if sub.can_renew:
         rows.append([btn(T.BTN_RENEW, "renew_term")])
     if sub.can_buy:
