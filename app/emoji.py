@@ -71,6 +71,10 @@ _ICON_FALLBACK = {icon: char for char, _, icon in reversed(_BUTTON_RULES)}  # id
 
 _TG_EMOJI = re.compile(r'<tg-emoji emoji-id="\d+">(.*?)</tg-emoji>', re.S)
 _runtime_off = False
+_fallbacks = 0
+_OFF_AFTER = 3   # столько успешных откатов, и премиум-эмодзи отключаются до перезапуска
+_UNRELATED = ("not modified", "message to edit not found", "message can't be edited", "query is too old",
+              "chat not found", "message to delete not found")
 
 
 def tg(name: str) -> str:
@@ -148,7 +152,7 @@ class PremiumEmojiMiddleware(BaseRequestMiddleware):
     """Иконки на кнопках и откат на обычные эмодзи, если Telegram премиум-эмодзи не принял."""
 
     async def __call__(self, make_request, bot: Bot, method: TelegramMethod):
-        global _runtime_off
+        global _runtime_off, _fallbacks
         if not isinstance(method, _MARKUP_METHODS):
             return await make_request(bot, method)
         if ENABLED and not _runtime_off:
@@ -160,12 +164,16 @@ class PremiumEmojiMiddleware(BaseRequestMiddleware):
         try:
             return await make_request(bot, method)
         except TelegramBadRequest as first:
-            if not _has_premium(method):
+            # ошибки, не связанные с эмодзи (например, «message is not modified» при повторном нажатии кнопки),
+            # не должны отключать премиум-эмодзи
+            if not _has_premium(method) or any(m in str(first).lower() for m in _UNRELATED):
                 raise
+            log.warning("Telegram отклонил сообщение с премиум-эмодзи (%s): повторяю с обычными эмодзи", first)
             _downgrade(method)
             result = await make_request(bot, method)  # если и так не вышло – ошибка уйдёт наверх
-            if not _runtime_off:
+            _fallbacks += 1
+            if _fallbacks >= _OFF_AFTER and not _runtime_off:
                 _runtime_off = True
-                log.warning("Telegram отклонил премиум-эмодзи (%s): дальше отправляю обычные. "
-                            "Проверьте, что у владельца бота есть Telegram Premium.", first)
+                log.warning("Премиум-эмодзи отклонены %s раза подряд: дальше отправляю обычные. "
+                            "Проверьте, что у владельца бота есть Telegram Premium.", _fallbacks)
             return result
